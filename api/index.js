@@ -26,17 +26,28 @@ async function connectToDatabase() {
   }
 
   if (!process.env.MONGODB_URI) {
+    console.error('MONGODB_URI is not defined');
     throw new Error('MONGODB_URI is not defined');
   }
 
   try {
+    // Close any existing connections
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+    }
+
     const client = await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
-      maxPoolSize: 10,
-      minPoolSize: 5
+      maxPoolSize: 1, // Reduce pool size for serverless
+      minPoolSize: 0, // Allow connection to close when idle
+      connectTimeoutMS: 10000,
+      retryWrites: true,
+      retryReads: true
     });
+
     cachedDb = client;
+    console.log('MongoDB connected successfully');
     return client;
   } catch (error) {
     console.error('MongoDB connection error:', error);
@@ -55,23 +66,37 @@ app.get('/api/health', async (req, res) => {
       status: 'ok',
       uptime: process.uptime(),
       timestamp: Date.now(),
-      database: db.connection.readyState === 1 ? 'connected' : 'disconnected'
+      database: db.connection.readyState === 1 ? 'connected' : 'disconnected',
+      memory: process.memoryUsage()
     });
   } catch (error) {
+    console.error('Health check error:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('Error:', err);
   res.status(500).json({
     status: 'error',
-    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
+    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled Promise Rejection:', error);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
 });
 
 // Export the Express API

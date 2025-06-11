@@ -18,42 +18,28 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 
 // MongoDB Connection
-let cachedDb = null;
-
-async function connectToDatabase() {
-  if (cachedDb) {
-    return cachedDb;
-  }
-
-  if (!process.env.MONGODB_URI) {
-    console.error('MONGODB_URI is not defined');
-    throw new Error('MONGODB_URI is not defined');
-  }
-
+const connectDB = async () => {
   try {
-    // Close any existing connections
-    if (mongoose.connection.readyState !== 0) {
-      await mongoose.disconnect();
+    if (mongoose.connection.readyState === 1) {
+      return mongoose.connection;
     }
 
-    const client = await mongoose.connect(process.env.MONGODB_URI, {
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI is not defined');
+    }
+
+    await mongoose.connect(process.env.MONGODB_URI, {
       serverSelectionTimeoutMS: 5000,
-      socketTimeoutMS: 45000,
-      maxPoolSize: 1, // Reduce pool size for serverless
-      minPoolSize: 0, // Allow connection to close when idle
-      connectTimeoutMS: 10000,
-      retryWrites: true,
-      retryReads: true
+      socketTimeoutMS: 45000
     });
 
-    cachedDb = client;
     console.log('MongoDB connected successfully');
-    return client;
+    return mongoose.connection;
   } catch (error) {
     console.error('MongoDB connection error:', error);
     throw error;
   }
-}
+};
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -61,20 +47,18 @@ app.use('/api/auth', authRoutes);
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
   try {
-    const db = await connectToDatabase();
+    const db = await connectDB();
     res.json({
       status: 'ok',
       uptime: process.uptime(),
       timestamp: Date.now(),
-      database: db.connection.readyState === 1 ? 'connected' : 'disconnected',
-      memory: process.memoryUsage()
+      database: db.readyState === 1 ? 'connected' : 'disconnected'
     });
   } catch (error) {
     console.error('Health check error:', error);
     res.status(500).json({
       status: 'error',
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     });
   }
 });
@@ -84,19 +68,8 @@ app.use((err, req, res, next) => {
   console.error('Error:', err);
   res.status(500).json({
     status: 'error',
-    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    message: 'Internal server error'
   });
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled Promise Rejection:', error);
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
 });
 
 // Export the Express API

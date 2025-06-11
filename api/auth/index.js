@@ -6,6 +6,12 @@ import profilePicture from './profile-picture.js';
 
 const router = express.Router();
 
+// Handle OPTIONS requests for CORS preflight
+router.options('*', (req, res) => {
+  res.status(200).end();
+});
+
+// Mount routes
 router.use('/register', register);
 router.use('/login', login);
 router.use('/profile', profile);

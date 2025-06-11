@@ -8,13 +8,23 @@ dotenv.config();
 
 const app = express();
 
-// Middleware
-app.use(cors({
-  origin: '*',
+// CORS configuration
+const corsOptions = {
+  origin: '*', // Allow all origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle OPTIONS requests
+app.options('*', cors(corsOptions));
+
+// Body parser middleware
 app.use(express.json({ limit: '50mb' }));
 
 // MongoDB Connection

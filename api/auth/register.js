@@ -1,55 +1,49 @@
-const { connectDB } = require('../../lib/db');
-const User = require('../../models/User');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+import express from 'express';
+import jwt from 'jsonwebtoken';
+import User from '../models/User';
+import mongoose from 'mongoose';
 
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
+const router = express.Router();
 
+router.post('/register', async (req, res) => {
   try {
-    await connectDB();
-    const { email, password, name } = req.body;
+    const { name, email, password } = req.body;
 
     // Check if user already exists
-    let user = await User.findOne({ email });
-    if (user) {
-      return res.status(400).json({ message: 'User already exists' });
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
     }
 
     // Create new user
-    user = new User({
+    const user = new User({
       name,
       email,
-      password,
-      profilePicture: '/images/no-profile-pic.svg'
+      password
     });
-
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(password, salt);
 
     await user.save();
 
-    // Create JWT token
+    // Generate JWT token
     const token = jwt.sign(
-      { _id: user._id },
+      { userId: user._id },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
+    // Return user data and token
     res.status(201).json({
       token,
       user: {
-        _id: user._id,
+        id: user._id,
         name: user.name,
-        email: user.email,
-        profilePicture: user.profilePicture
+        email: user.email
       }
     });
-  } catch (err) {
-    console.error('Registration error:', err);
-    res.status(500).json({ message: 'Server error' });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Error registering user' });
   }
-}; 
+});
+
+export default router; 

@@ -1,63 +1,30 @@
-const { connectDB } = require('../../lib/db');
-const User = require('../../models/User');
-const { auth } = require('../../middleware/auth');
-const multer = require('multer');
-const { promisify } = require('util');
+import express from 'express';
+import { auth } from '../middleware/auth';
+import User from '../models/User';
 
-// Configure multer for memory storage
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    // Accept images only
-    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-      return cb(new Error('Only image files are allowed!'), false);
-    }
-    cb(null, true);
-  }
-}).single('profilePicture');
+const router = express.Router();
 
-const uploadPromise = promisify(upload);
-
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
-  }
-
+router.put('/profile-picture', auth, async (req, res) => {
   try {
-    await connectDB();
+    const { profilePicture } = req.body;
     
-    // Authenticate user
-    const authResult = await auth(req);
-    if (!authResult.success) {
-      return res.status(401).json({ message: authResult.message });
+    if (!profilePicture) {
+      return res.status(400).json({ error: 'Profile picture is required' });
     }
 
-    // Handle file upload
-    await uploadPromise(req, res);
-
-    if (!req.file) {
-      return res.status(400).json({ message: 'No file uploaded' });
-    }
-
-    const user = await User.findById(authResult.user._id);
+    const user = await User.findById(req.user._id);
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ error: 'User not found' });
     }
 
-    // Convert buffer to base64
-    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    user.profilePicture = base64Image;
+    user.profilePicture = profilePicture;
     await user.save();
 
-    res.json({ 
-      message: 'Profile picture updated successfully',
-      profilePicture: base64Image
-    });
-  } catch (err) {
-    console.error('Profile picture upload error:', err);
-    res.status(500).json({ message: 'Server error' });
+    res.json({ profilePicture: user.profilePicture });
+  } catch (error) {
+    console.error('Profile picture update error:', error);
+    res.status(500).json({ error: 'Error updating profile picture' });
   }
-}; 
+});
+
+export default router; 

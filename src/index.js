@@ -8,7 +8,11 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: '*', // Allow all origins
+  origin: [
+    'http://localhost:3000',
+    'https://manas-next.vercel.app',
+    'https://manas-foundation.vercel.app'
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -18,11 +22,25 @@ app.use(express.json());
 // MongoDB Connection
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI is not defined in environment variables');
+    }
+
+    const options = {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+    };
+
+    await mongoose.connect(process.env.MONGODB_URI, options);
     console.log('Connected to MongoDB');
   } catch (err) {
     console.error('MongoDB connection error:', err);
-    process.exit(1);
+    // Don't exit process in serverless environment
+    if (process.env.NODE_ENV !== 'production') {
+      process.exit(1);
+    }
   }
 };
 
@@ -37,10 +55,24 @@ app.get('/api', (req, res) => {
   res.json({ message: 'Welcome to MANAS Foundation API' });
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  const health = {
+    uptime: process.uptime(),
+    message: 'OK',
+    timestamp: Date.now(),
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  };
+  res.json(health);
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  console.error('Error:', err);
+  res.status(500).json({ 
+    message: 'Something went wrong!',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
 
 // For local development

@@ -20,10 +20,17 @@ app.use(cors({
 app.use(express.json());
 
 // MongoDB Connection
+let cachedDb = null;
+
 const connectDB = async () => {
   try {
     if (!process.env.MONGODB_URI) {
       throw new Error('MONGODB_URI is not defined in environment variables');
+    }
+
+    // If we have a cached connection, return it
+    if (cachedDb) {
+      return cachedDb;
     }
 
     const options = {
@@ -31,21 +38,22 @@ const connectDB = async () => {
       useUnifiedTopology: true,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
+      maxPoolSize: 10,
+      minPoolSize: 5,
     };
 
-    await mongoose.connect(process.env.MONGODB_URI, options);
+    const db = await mongoose.connect(process.env.MONGODB_URI, options);
+    cachedDb = db;
     console.log('Connected to MongoDB');
+    return db;
   } catch (err) {
     console.error('MongoDB connection error:', err);
-    // Don't exit process in serverless environment
-    if (process.env.NODE_ENV !== 'production') {
-      process.exit(1);
-    }
+    throw err;
   }
 };
 
-// Connect to MongoDB
-connectDB();
+// Initialize DB connection
+connectDB().catch(console.error);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -56,14 +64,21 @@ app.get('/api', (req, res) => {
 });
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  const health = {
-    uptime: process.uptime(),
-    message: 'OK',
-    timestamp: Date.now(),
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  };
-  res.json(health);
+app.get('/api/health', async (req, res) => {
+  try {
+    const health = {
+      uptime: process.uptime(),
+      message: 'OK',
+      timestamp: Date.now(),
+      mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    };
+    res.json(health);
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
 });
 
 // Error handling middleware

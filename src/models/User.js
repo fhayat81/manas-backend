@@ -29,26 +29,20 @@ const userSchema = new mongoose.Schema({
     default: 'user'
   },
   phone: {
-    type: String,
-    required: true
+    type: String
   },
   age: {
-    type: Number,
-    required: true
+    type: Number
   },
   maritalStatus: {
     type: String,
-    enum: ['widow', 'divorced'],
-    required: true
+    enum: ['Single', 'Married', 'Divorced', 'Widowed']
   },
   children: {
-    type: Number,
-    required: true
+    type: Number
   },
   education: {
-    type: String,
-    enum: ['high_school', 'bachelors', 'masters', 'phd', 'other'],
-    required: true
+    type: String
   },
   address: {
     type: String,
@@ -68,7 +62,7 @@ const userSchema = new mongoose.Schema({
   },
   profilePicture: {
     type: String,
-    default: null
+    default: '/images/no-profile-pic.svg'
   }
 }, {
   timestamps: true

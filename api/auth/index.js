@@ -1,14 +1,14 @@
 import express from 'express';
-import register from './register';
-import login from './login';
-import profile from './profile';
-import profilePicture from './profile-picture';
+import register from './register.js';
+import login from './login.js';
+import profile from './profile.js';
+import profilePicture from './profile-picture.js';
 
 const router = express.Router();
 
-router.post('/register', register);
-router.post('/login', login);
-router.get('/profile', profile);
-router.put('/profile-picture', profilePicture);
+router.use('/register', register);
+router.use('/login', login);
+router.use('/profile', profile);
+router.use('/profile-picture', profilePicture);
 
 export default router; 

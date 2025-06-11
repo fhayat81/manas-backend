@@ -9,20 +9,9 @@ const multer = require('multer');
 
 const router = express.Router();
 
-// Configure multer for disk storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../../uploads/profile-pictures');
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
+// Configure multer for memory storage
 const uploadMulter = multer({
-  storage: storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
@@ -306,22 +295,14 @@ router.post('/profile/picture', auth, uploadMulter.single('profilePicture'), asy
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Delete old profile picture if it exists and is not the default
-    if (user.profilePicture && !user.profilePicture.includes('no-profile-pic.svg')) {
-      const oldPicturePath = path.join(__dirname, '../../', user.profilePicture);
-      if (fs.existsSync(oldPicturePath)) {
-        fs.unlinkSync(oldPicturePath);
-      }
-    }
-
-    // Save the new profile picture
-    const profilePicturePath = `/uploads/profile-pictures/${req.file.filename}`;
-    user.profilePicture = profilePicturePath;
+    // Convert buffer to base64
+    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    user.profilePicture = base64Image;
     await user.save();
 
     res.json({ 
       message: 'Profile picture updated successfully',
-      profilePicture: profilePicturePath
+      profilePicture: base64Image
     });
   } catch (err) {
     console.error('Profile picture upload error:', err);

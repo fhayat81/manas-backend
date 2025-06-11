@@ -41,6 +41,11 @@ const connectDB = async () => {
   }
 };
 
+// Root path handler
+app.get('/', (req, res) => {
+  res.json({ status: 'API is running' });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 

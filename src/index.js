@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '.env.local' });
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,7 +9,7 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: true, // Allow all origins in development
+  origin: ['http://localhost:3000', 'https://manas-foundation.vercel.app'],
   credentials: true
 }));
 app.use(express.json());

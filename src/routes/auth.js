@@ -2,7 +2,6 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { auth } = require('../middleware/auth');
-const upload = require('../middleware/upload');
 const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
@@ -10,12 +9,30 @@ const multer = require('multer');
 
 const router = express.Router();
 
-// Configure multer for memory storage instead of disk storage
+// Configure multer for disk storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, '../../uploads/profile-pictures');
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
 const uploadMulter = multer({
-  storage: multer.memoryStorage(),
+  storage: storage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
+  fileFilter: (req, file, cb) => {
+    // Accept images only
+    if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
+      return cb(new Error('Only image files are allowed!'), false);
+    }
+    cb(null, true);
+  }
 });
 
 // Create uploads directory if it doesn't exist
@@ -205,52 +222,75 @@ router.put('/profile', auth, uploadMulter.single('profilePicture'), async (req, 
       }
     }
 
-    // Handle profile picture update
-    if (req.file) {
-      // Delete old profile picture if it exists and is not the default
-      if (user.profilePicture && !user.profilePicture.includes('no-profile-pic.svg')) {
-        const oldPicturePath = path.join(__dirname, '../../', user.profilePicture);
-        if (fs.existsSync(oldPicturePath)) {
-          fs.unlinkSync(oldPicturePath);
+    try {
+      // Handle profile picture update or removal
+      if (req.file) {
+        // Delete old profile picture if it exists and is not the default
+        if (user.profilePicture && !user.profilePicture.includes('no-profile-pic.svg')) {
+          const oldPicturePath = path.join(__dirname, '../../', user.profilePicture);
+          if (fs.existsSync(oldPicturePath)) {
+            fs.unlinkSync(oldPicturePath);
+          }
         }
+        updates.profilePicture = `/uploads/profile-pictures/${req.file.filename}`;
+      } else if (updates.removeProfilePicture === 'true' || updates.profilePicture === '') {
+        // Delete old profile picture if it exists and is not the default
+        if (user.profilePicture && !user.profilePicture.includes('no-profile-pic.svg')) {
+          const oldPicturePath = path.join(__dirname, '../../', user.profilePicture);
+          if (fs.existsSync(oldPicturePath)) {
+            fs.unlinkSync(oldPicturePath);
+          }
+        }
+        updates.profilePicture = '/images/no-profile-pic.svg';
       }
-      updates.profilePicture = `/uploads/profile-pictures/${req.file.filename}`;
+
+      // Remove the removeProfilePicture flag from updates
+      delete updates.removeProfilePicture;
+
+      // Update user fields
+      Object.keys(updates).forEach(update => {
+        if (update === 'age' || update === 'children') {
+          user[update] = parseInt(updates[update]);
+        } else {
+          user[update] = updates[update];
+        }
+      });
+
+      await user.save();
+
+      res.json({
+        message: 'Profile updated successfully',
+        user: {
+          id: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          phone: user.phone,
+          age: user.age,
+          maritalStatus: user.maritalStatus,
+          children: user.children,
+          education: user.education,
+          address: user.address,
+          city: user.city,
+          state: user.state,
+          country: user.country,
+          profilePicture: user.profilePicture
+        }
+      });
+    } catch (error) {
+      console.error('Error updating user:', error);
+      return res.status(500).json({ 
+        message: 'Error updating profile',
+        error: error.message 
+      });
     }
-
-    // Update user fields
-    Object.keys(updates).forEach(update => {
-      if (update === 'age' || update === 'children') {
-        user[update] = parseInt(updates[update]);
-      } else {
-        user[update] = updates[update];
-      }
-    });
-
-    await user.save();
-
-    res.json({
-      message: 'Profile updated successfully',
-      user: {
-        id: user._id,
-        username: user.username,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        age: user.age,
-        maritalStatus: user.maritalStatus,
-        children: user.children,
-        education: user.education,
-        address: user.address,
-        city: user.city,
-        state: user.state,
-        country: user.country,
-        profilePicture: user.profilePicture
-      }
-    });
   } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ message: 'Error updating profile' });
+    console.error('Profile update error:', error);
+    return res.status(500).json({ 
+      message: 'Error updating profile',
+      error: error.message 
+    });
   }
 });
 
@@ -266,12 +306,23 @@ router.post('/profile/picture', auth, uploadMulter.single('profilePicture'), asy
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Convert buffer to base64
-    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    user.profilePicture = base64Image;
+    // Delete old profile picture if it exists and is not the default
+    if (user.profilePicture && !user.profilePicture.includes('no-profile-pic.svg')) {
+      const oldPicturePath = path.join(__dirname, '../../', user.profilePicture);
+      if (fs.existsSync(oldPicturePath)) {
+        fs.unlinkSync(oldPicturePath);
+      }
+    }
+
+    // Save the new profile picture
+    const profilePicturePath = `/uploads/profile-pictures/${req.file.filename}`;
+    user.profilePicture = profilePicturePath;
     await user.save();
 
-    res.json({ message: 'Profile picture updated successfully' });
+    res.json({ 
+      message: 'Profile picture updated successfully',
+      profilePicture: profilePicturePath
+    });
   } catch (err) {
     console.error('Profile picture upload error:', err);
     res.status(500).json({ message: 'Server error' });

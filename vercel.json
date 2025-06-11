@@ -4,7 +4,7 @@
     "NODE_ENV": "production"
   },
   "functions": {
-    "src/index.js": {
+    "api/**/*.js": {
       "memory": 1024,
       "maxDuration": 10
     }
@@ -12,11 +12,15 @@
   "routes": [
     {
       "src": "/api/health",
-      "dest": "src/index.js"
+      "dest": "/api/health.js"
+    },
+    {
+      "src": "/api/auth/(.*)",
+      "dest": "/api/auth/$1"
     },
     {
       "src": "/(.*)",
-      "dest": "src/index.js"
+      "dest": "/api/index.js"
     }
   ]
 } 

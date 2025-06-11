@@ -1,16 +1,11 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
-  username: {
-    type: String,
-    required: true,
-    unique: true,
-    trim: true
-  },
   name: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   email: {
     type: String,
@@ -23,46 +18,30 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  role: {
-    type: String,
-    enum: ['user', 'admin'],
-    default: 'user'
-  },
   phone: {
-    type: String
+    type: String,
+    trim: true
   },
   age: {
-    type: Number
+    type: Number,
+    min: 0
   },
   maritalStatus: {
     type: String,
-    enum: ['Single', 'Married', 'Divorced', 'Widowed']
+    enum: ['Single', 'Married', 'Divorced', 'Widowed'],
+    default: 'Single'
   },
   children: {
-    type: Number
+    type: Number,
+    min: 0,
+    default: 0
   },
   education: {
-    type: String
-  },
-  address: {
     type: String,
-    required: true
-  },
-  city: {
-    type: String,
-    required: true
-  },
-  state: {
-    type: String,
-    required: true
-  },
-  country: {
-    type: String,
-    required: true
+    trim: true
   },
   profilePicture: {
-    type: String,
-    default: '/images/no-profile-pic.svg'
+    type: String
   }
 }, {
   timestamps: true
@@ -81,7 +60,7 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// Compare password method
+// Method to compare password
 userSchema.methods.comparePassword = async function(candidatePassword) {
   try {
     return await bcrypt.compare(candidatePassword, this.password);
@@ -90,6 +69,6 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   }
 };
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
-module.exports = User; 
+export default User; 
